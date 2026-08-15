@@ -28,7 +28,9 @@ Frontend (run from ./frontend):
 3. A missing price is a valid, designed state, not an error. Show
    "Not available" in the UI.
 4. Every PR closes exactly one user story and updates docs/06-traceability.md.
-5. Branch naming: feat/FR-XX-short-name. Conventional commits. Squash merge.
+5. Branch naming: feat/FR-XX-short-name. Conventional commits. Merge commit
+   (never squash): branch topology in the commit graph is a project
+   deliverable, and squashing erases it.
 6. Tests are written from the story's Gherkin acceptance criteria, before
    the implementation.
 7. No secrets in code. Use .env, and keep .env.example committed.
