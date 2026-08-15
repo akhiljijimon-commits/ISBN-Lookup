@@ -68,6 +68,8 @@ web_modules/
 # dotenv environment variable files
 .env
 .env.*
+# NFR-03: .env.* would swallow the example template, which must stay committed
+# so every required variable is discoverable without leaking a value.
 !.env.example
 
 # parcel-bundler cache (https://parceljs.org/)

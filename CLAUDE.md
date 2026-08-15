@@ -5,8 +5,15 @@ React + FastAPI + Pydantic AI. User enters an ISBN, sees book details in a table
 ## Stack
 - Backend: Python 3.12, FastAPI, Pydantic AI, uv, pytest, ruff, mypy
 - Frontend: React 19, TypeScript, Vite, ESLint, vitest
+- LLM: a self-hosted vLLM endpoint serving nvidia/Qwen3.6-35B-A3B-NVFP4,
+  reached through Pydantic AI's OpenAI-compatible provider with a custom
+  base_url. This is not the Anthropic API. Configured by LLM_API_KEY,
+  LLM_BASE_URL and LLM_MODEL in .env.
+  Qwen3.6 is a reasoning model, so requests pass chat_template_kwargs
+  {"enable_thinking": false} for structured extraction.
 - Data: mcp-open-library (MCP server) for identity/author/cover,
-  Google Books API for price/description
+  Google Books API for price/description. GOOGLE_BOOKS_API_KEY is optional:
+  Google Books is called unauthenticated at this volume.
 
 ## Commands
 Backend (run from ./backend):
