@@ -15,6 +15,15 @@ Scenarios use the golden fixture from CLAUDE.md throughout: `9780132350884`
 (*Clean Code*, Robert C. Martin), its ISBN-10 form `0132350882`, and `9780132350885` —
 the same digits with a wrong final check digit — as the invalid example.
 
+US-10's not-found scenario needs a different fixture: an ISBN that is *valid* yet has no
+record, so it cannot be one of the above. It uses `9780299999995` — valid check digit,
+978-0 English-language prefix, and verified absent from Open Library. An earlier draft used
+`9781234567897`, which turns out to return a real record (*Construction Cost Consultant for
+Residential Commercial and Industrial Construction Projects*), so any scenario built on it
+would have passed only against a stub that repeated the mistake. Absence is a property of
+the upstream catalogue on a given day, not of the number: per NFR-06 this fixture must be
+stubbed in tests rather than trusted live.
+
 ---
 
 ## US-01: ISBN validation and normalisation
@@ -397,11 +406,11 @@ or simply try again later.
 
 ```gherkin
 Scenario: A valid ISBN with no record shows a not-found state
-  Given "9781234567897" is a valid ISBN
+  Given "9780299999995" is a valid ISBN
   And no source has a record for it
   When the lookup runs
   Then a "no book found" state is displayed
-  And the state names the ISBN "9781234567897" as the one searched
+  And the state names the ISBN "9780299999995" as the one searched
   And no result table is displayed
 
 Scenario: An unreachable identity source shows a failure state with a retry
