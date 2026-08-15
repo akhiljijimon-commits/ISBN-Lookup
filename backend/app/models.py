@@ -9,7 +9,13 @@ Source = Literal["open_library", "google_books", "llm"]
 class BookInfo(BaseModel):
     """The single data contract shared by the agent, the API and the UI."""
 
-    isbn: str = Field(description="The ISBN-13 that was looked up")
+    isbn: str = Field(
+        description=(
+            "The ISBN-13 that was looked up. ISBN-10 input is normalised to "
+            "ISBN-13, so this field is always ISBN-13 regardless of the form "
+            "the user entered."
+        )
+    )
     title: str
     authors: list[str]
     cover_url: HttpUrl | None = Field(
