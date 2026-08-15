@@ -12,8 +12,8 @@ React + FastAPI + Pydantic AI. User enters an ISBN, sees book details in a table
   Qwen3.6 is a reasoning model, so requests pass chat_template_kwargs
   {"enable_thinking": false} for structured extraction.
 - Data: mcp-open-library (MCP server) for identity/author/cover,
-  Google Books API for price/description. GOOGLE_BOOKS_API_KEY is optional:
-  Google Books is called unauthenticated at this volume.
+  Google Books API for price/description. GOOGLE_BOOKS_API_KEY is required:
+  anonymous requests hit an exhausted shared daily quota and return HTTP 429.
 
 ## Commands
 Backend (run from ./backend):

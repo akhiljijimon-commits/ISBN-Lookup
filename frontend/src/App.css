@@ -61,3 +61,40 @@ th {
   width: 8rem;
   font-weight: 600;
 }
+
+/* Collapsed by default: <details> without the `open` attribute. */
+.api-response {
+  margin-top: 1.5rem;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+}
+
+.api-response summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.api-response dl {
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.api-response dt {
+  font-weight: 600;
+}
+
+.api-response dd {
+  margin: 0;
+}
+
+.api-response pre {
+  overflow-x: auto;
+  margin: 0;
+  padding: 0.75rem;
+  background: #f4f4f4;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}

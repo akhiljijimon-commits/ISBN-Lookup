@@ -5,6 +5,7 @@ path arrives with US-05 (Open Library via mcp-open-library) and US-06 (Google
 Books). See docs/adr/0004-vertical-slice-spike.md.
 """
 
+import os
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -84,12 +85,18 @@ async def fetch_open_library(isbn: str) -> Identity | None:
 
 
 async def fetch_google_books(isbn: str) -> Commerce | None:
-    """Price and publisher description from Google Books, unauthenticated.
+    """Price and publisher description from Google Books.
 
-    GOOGLE_BOOKS_API_KEY is not used: the volumes endpoint serves anonymous
-    requests fine at this volume.
+    GOOGLE_BOOKS_API_KEY is required, not optional: anonymous requests hit an
+    exhausted shared daily quota and return HTTP 429. Read from the
+    environment at call time so the key never appears in source (rule 7).
     """
-    data = await _get_json(GOOGLE_BOOKS_URL, {"q": f"isbn:{isbn}"})
+    params = {"q": f"isbn:{isbn}"}
+    api_key = os.environ.get("GOOGLE_BOOKS_API_KEY")
+    if api_key:
+        params["key"] = api_key
+
+    data = await _get_json(GOOGLE_BOOKS_URL, params)
     if not isinstance(data, dict):
         return None
 

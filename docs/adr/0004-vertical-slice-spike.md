@@ -77,10 +77,26 @@ returns HTTP 429: *"Quota exceeded for quota metric 'Queries' and limit 'Queries
 This is not a rate limit that patience clears — it is a shared daily quota against an
 anonymous consumer project, exhausted before we arrived.
 
-The consequence is direct: **`GOOGLE_BOOKS_API_KEY` is not optional**, contrary to the note
-currently in `CLAUDE.md` and `.env.example`. US-06 cannot be built against anonymous access.
-Either a key is obtained, or FR-08's price and description have no source and FR-13's
-"missing price" becomes the permanent state rather than the exceptional one.
+The consequence is direct: **`GOOGLE_BOOKS_API_KEY` is not optional.** US-06 cannot be built
+against anonymous access. Either a key is obtained, or FR-08's price and description have no
+source and FR-13's "missing price" becomes the permanent state rather than the exceptional
+one.
+
+*Resolved, 2026-08-15.* A key was obtained and verified. `CLAUDE.md` and `.env.example`,
+which had both described the key as optional, now state that it is required;
+`fetch_google_books` appends it from the environment when set. The finding stands as the
+reason those documents changed.
+
+**1a. The golden ISBN has no price, and never will.** With the key working, Google Books
+returns HTTP 200 for `9780132350884` with `saleability: NOT_FOR_SALE` and no `listPrice`
+at all. The description populates; the price does not. So `price: null` for the golden
+fixture is correct upstream data, not a quota artefact and not an extraction bug.
+
+This makes the golden ISBN a permanent exerciser of FR-13 — "Not available" is its normal
+rendering, in every demo and every manual check. A title that *does* carry a price is
+needed to exercise the other branch: `9783527823925` (*Clean Code für Dummies*) returns
+`"19.99"` / `EUR`. It also returns `cover_url: null`, so it doubles as a live case for
+FR-14's placeholder. Both belong in US-06's and US-09's stubbed fixtures.
 
 The spike degraded correctly, which is worth recording: the 429 produced a 200 response with
 `price` and `currency` null and `sources` listing only `open_library`. That is FR-17's

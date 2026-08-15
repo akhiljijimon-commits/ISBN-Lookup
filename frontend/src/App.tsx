@@ -16,11 +16,20 @@ interface BookInfo {
   sources: string[]
 }
 
+// What the API layer actually did, so it can be shown rather than described.
+interface ResponseMeta {
+  endpoint: string
+  status: number
+  ms: number
+  body: string
+}
+
 const API_BASE = 'http://localhost:8000'
 
 function App() {
   const [isbn, setIsbn] = useState('')
   const [book, setBook] = useState<BookInfo | null>(null)
+  const [meta, setMeta] = useState<ResponseMeta | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -29,9 +38,24 @@ function App() {
     setLoading(true)
     setError(null)
     setBook(null)
+    setMeta(null)
+
+    const path = `/api/books/${isbn.trim()}`
+    const started = performance.now()
 
     try {
-      const response = await fetch(`${API_BASE}/api/books/${isbn.trim()}`)
+      const response = await fetch(`${API_BASE}${path}`)
+      const elapsed = Math.round(performance.now() - started)
+      const text = await response.text()
+
+      let body = text
+      try {
+        body = JSON.stringify(JSON.parse(text), null, 2)
+      } catch {
+        // Not JSON — show whatever came back verbatim.
+      }
+      setMeta({ endpoint: `GET ${path}`, status: response.status, ms: elapsed, body })
+
       if (!response.ok) {
         setError(
           response.status === 404
@@ -40,7 +64,7 @@ function App() {
         )
         return
       }
-      setBook((await response.json()) as BookInfo)
+      setBook(JSON.parse(text) as BookInfo)
     } catch {
       setError('Could not reach the lookup service')
     } finally {
@@ -105,6 +129,23 @@ function App() {
             </tr>
           </tbody>
         </table>
+      )}
+
+      {meta && (
+        <details className="api-response">
+          <summary>API response</summary>
+          <dl>
+            <dt>Endpoint</dt>
+            <dd>
+              <code>{meta.endpoint}</code>
+            </dd>
+            <dt>Status</dt>
+            <dd>{meta.status}</dd>
+            <dt>Time</dt>
+            <dd>{meta.ms} ms</dd>
+          </dl>
+          <pre>{meta.body}</pre>
+        </details>
       )}
     </main>
   )

@@ -7,12 +7,19 @@ will use, so stories overwrite this code rather than build on it.
 """
 
 import re
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.models import BookInfo, Source
 from app.sources import fetch_google_books, fetch_open_library
+
+# .env lives at the repository root, one level above backend/. Loaded here so
+# the documented `uv run uvicorn app.main:app --reload` picks up credentials
+# without extra flags (rule 7, NFR-03, NFR-10).
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 app = FastAPI(title="ISBN Lookup (spike)")
 
