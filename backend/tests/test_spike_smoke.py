@@ -108,6 +108,29 @@ async def test_hyphens_and_spaces_are_ignored(stubbed_upstreams: None) -> None:
     assert response.json()["isbn"] == GOLDEN_ISBN
 
 
+async def test_open_library_request_identifies_the_application(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Open Library throttles unidentified clients to 1 request/second."""
+    seen: dict[str, str] = {}
+
+    def capturing_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "openlibrary.org":
+            seen["user-agent"] = request.headers.get("user-agent", "")
+            return httpx.Response(200, json=OPEN_LIBRARY_PAYLOAD)
+        return httpx.Response(200, json=GOOGLE_BOOKS_PAYLOAD)
+
+    monkeypatch.setattr(
+        sources,
+        "_new_client",
+        lambda: httpx.AsyncClient(transport=httpx.MockTransport(capturing_handler)),
+    )
+
+    await _get(f"/api/books/{GOLDEN_ISBN}")
+
+    assert seen["user-agent"] == "ISBN-Lookup/0.1 (akhiljijimon@gmail.com)"
+
+
 async def test_a_non_isbn_is_refused_without_calling_upstream() -> None:
     # No stub fixture: reaching an upstream would raise in _handler, but with
     # nothing patched a real call would be attempted. Neither happens, because
