@@ -6,6 +6,8 @@ restores each one. Every file here sits at the path the real implementation
 will use, so stories overwrite this code rather than build on it.
 """
 
+import logging
+import os
 import re
 from pathlib import Path
 
@@ -13,8 +15,11 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.models import BookInfo, Source
+from app.agent import assemble_without_agent, normalise
+from app.models import BookInfo
 from app.sources import fetch_google_books, fetch_open_library
+
+logger = logging.getLogger(__name__)
 
 # .env lives at the repository root, one level above backend/. Loaded here so
 # the documented `uv run uvicorn app.main:app --reload` picks up credentials
@@ -31,6 +36,13 @@ app.add_middleware(
 )
 
 _THIRTEEN_DIGITS = re.compile(r"^\d{13}$")
+
+_FALSY = {"0", "false", "no", "off"}
+
+
+def _use_agent() -> bool:
+    """Agent path on by default; USE_AGENT=0 serves the deterministic path."""
+    return os.environ.get("USE_AGENT", "true").strip().lower() not in _FALSY
 
 
 def _normalise(raw: str) -> str | None:
@@ -62,19 +74,17 @@ async def get_book(isbn: str) -> BookInfo:
 
     commerce = await fetch_google_books(normalised)
 
-    sources: list[Source] = ["open_library"]
-    if commerce is not None:
-        sources.append("google_books")
+    if _use_agent():
+        try:
+            return await normalise(normalised, identity, commerce)
+        except Exception:
+            # An unreachable or misbehaving LLM degrades to the deterministic
+            # result rather than failing a lookup whose facts are already in
+            # hand — the same shape as FR-17's price-source degradation.
+            logger.warning(
+                "agent path failed for %s, falling back to deterministic assembly",
+                normalised,
+                exc_info=True,
+            )
 
-    return BookInfo(
-        isbn=normalised,
-        title=identity.title,
-        authors=identity.authors,
-        cover_url=identity.cover_url,  # type: ignore[arg-type]  # str coerced to HttpUrl
-        price=commerce.price if commerce else None,
-        currency=commerce.currency if commerce else None,
-        description=(commerce.description if commerce else None) or "",
-        # No LLM in the spike, so nothing is ever model-authored (FR-10).
-        description_is_generated=False,
-        sources=sources,
-    )
+    return assemble_without_agent(normalised, identity, commerce)
