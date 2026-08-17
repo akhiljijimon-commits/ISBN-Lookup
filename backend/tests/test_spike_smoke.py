@@ -59,6 +59,16 @@ def _handler(request: httpx.Request) -> httpx.Response:
     raise AssertionError(f"unexpected upstream request to {request.url}")
 
 
+@pytest.fixture(autouse=True)
+def deterministic_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests assert the pre-agent shape, so pin the deterministic path.
+
+    Without this the agent would run and reach the live LLM, breaking NFR-06's
+    requirement that the suite make no network call.
+    """
+    monkeypatch.setenv("USE_AGENT", "0")
+
+
 @pytest.fixture
 def stubbed_upstreams(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patch the client seam in sources.py so no network call is made."""
