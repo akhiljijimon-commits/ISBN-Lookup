@@ -70,7 +70,7 @@ Open Library's `api/books` endpoint is the right choice over `/isbn/{isbn}.json`
 author *names* and a cover URL inline, where the latter returns author keys requiring a
 further request each.
 
-### Two findings that change the plan
+### Findings that change the plan
 
 **1. Google Books rejects unauthenticated requests at this volume.** Every anonymous call
 returns HTTP 429: *"Quota exceeded for quota metric 'Queries' and limit 'Queries per day'"*.
@@ -112,6 +112,64 @@ and pass only against a stub that encodes the same mistake.
 English-language prefix, so it reads as a plausible book identifier rather than an obvious
 sentinel. Note that "absent" is a property of Open Library today, not of the number:
 any fixture built on absence should be stubbed, per NFR-06, rather than trusted live.
+
+**3. Open Library requires an identified client.** Its API documentation asks for a descriptive
+`User-Agent` carrying a contact address. Unidentified clients are rate-limited to one request per
+second; identified ones are allowed three. `fetch_open_library` now sends:
+
+```
+User-Agent: ISBN-Lookup/0.1 (akhiljijimon@gmail.com)
+```
+
+The header is sent only to Open Library, not to Google Books, and
+`test_open_library_request_identifies_the_application` guards it.
+
+*Recorded 2026-08-17, with a correction to the reason for adding it.* The change was prompted by
+an assumption that we were being throttled. Measurement does not support that. At the time of
+writing `openlibrary.org` is not throttling us — it is **unreachable**: the TCP handshake to
+`207.241.234.205:443` never completes, `curl` reports `connect=0.000000s` before timing out, and
+every host under the domain including `covers.openlibrary.org` behaves the same way. `archive.org`,
+run by the same operator, returns 200 from the same machine, so this is specific to Open Library
+rather than a local network fault. Throttling would present as HTTP 429 or slow-but-successful
+responses, not as a refused connection.
+
+So the header is correct and required by their documentation, and it should stay — but it did not
+fix the failure we were seeing, and it will not. While the outage lasts, `_get_json` turns the
+timeout into `None` and every lookup returns 404, which is the FR-15/FR-16 conflation described
+elsewhere in this ADR showing up in production form: "the source is down" is being reported to users
+as "no such book".
+
+### A temporary identity fallback, added 2026-08-17
+
+**Why.** Open Library is unreachable, as measured above. Because `_get_json` turns the failure into
+`None` and `BookInfo.title` is required, *every* lookup returns 404 — the system does nothing at
+all while the outage lasts. The fallback exists so it keeps working.
+
+**What.** When `fetch_open_library` yields nothing and `ALLOW_IDENTITY_FALLBACK` is set, title,
+authors and cover come from Google Books instead. `sources` then reports `google_books` alone: the
+result truthfully says Open Library contributed nothing, so FR-11 and NFR-05 still hold.
+
+**The flag defaults to off**, so the documented architecture is what runs unless someone opts out of
+it. FR-07 is unchanged — Open Library owns identity, and the fallback fires only when Open Library
+has already returned nothing. `test_open_library_still_wins_when_reachable` pins that.
+
+**This is a degradation path, not a design change, and it should be deleted when Open Library
+returns.** Google Books has noisier identity data (`docs/01-vision.md`), which is the reason the
+split in §5 of the technical concept exists. Its cover is also a small `books.google.com` thumbnail
+rather than a full-size jacket. The fallback produces worse data that is honestly labelled — not
+equivalent data.
+
+**A bug found while verifying it.** The first implementation called Google Books twice on this path:
+once for identity, once for commerce. The second call was rate-limited in live testing, which
+silently discarded the publisher description and flipped `description_is_generated` to `true` — a
+provenance error caused purely by asking twice. `fetch_google_books_pair` now derives both
+projections from a single request. Worth recording because the failure was invisible in the
+response: nothing about a generated description looks wrong until you know a publisher one existed.
+
+**Latency is now badly over budget.** A fallback lookup measured **10.3 seconds** end to end: three
+seconds burnt on the Open Library timeout, about a second on Google Books, and the rest on the model.
+NFR-01 budgets five seconds p95 for the whole lookup. This path is double it, and even the healthy
+agent path is at the limit (see [ADR-0005](0005-agent-without-autonomous-tool-calling.md)).
 
 ### Unverified
 

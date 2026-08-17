@@ -261,6 +261,81 @@ async def test_use_agent_off_serves_the_deterministic_path(
     assert "llm" not in response.json()["sources"]
 
 
+# --- Temporary identity fallback (Open Library outage) ----------------------
+
+GOOGLE_BOOKS_WITH_IDENTITY = {
+    "totalItems": 1,
+    "items": [
+        {
+            "volumeInfo": {
+                "title": "Clean Code",
+                "authors": ["Robert C. Martin"],
+                "imageLinks": {"thumbnail": "https://books.google.com/thumb.jpg"},
+                "description": "A publisher-written description.",
+            },
+            "saleInfo": {"listPrice": {"amount": 37.99, "currencyCode": "EUR"}},
+        }
+    ],
+}
+
+
+async def test_identity_fallback_is_off_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The documented architecture runs unless explicitly opted out of."""
+    monkeypatch.delenv("ALLOW_IDENTITY_FALLBACK", raising=False)
+    _stub_upstreams(monkeypatch, EMPTY_OPEN_LIBRARY, GOOGLE_BOOKS_WITH_IDENTITY)
+
+    response = await _get(f"/api/books/{GOLDEN_ISBN}")
+
+    assert response.status_code == 404
+
+
+async def test_identity_fallback_serves_google_books_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ALLOW_IDENTITY_FALLBACK", "1")
+    monkeypatch.setenv("USE_AGENT", "0")
+    _stub_upstreams(monkeypatch, EMPTY_OPEN_LIBRARY, GOOGLE_BOOKS_WITH_IDENTITY)
+
+    response = await _get(f"/api/books/{GOLDEN_ISBN}")
+
+    assert response.status_code == 200
+    book = BookInfo.model_validate(response.json())
+    assert book.title == "Clean Code"
+    assert book.authors == ["Robert C. Martin"]
+    assert book.cover_url is not None
+    # Provenance tells the truth: Open Library contributed nothing.
+    assert book.sources == ["google_books"]
+    assert "open_library" not in book.sources
+
+
+async def test_identity_fallback_still_404s_when_neither_source_has_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ALLOW_IDENTITY_FALLBACK", "1")
+    _stub_upstreams(monkeypatch, EMPTY_OPEN_LIBRARY, EMPTY_GOOGLE_BOOKS)
+
+    response = await _get(f"/api/books/{GOLDEN_ISBN}")
+
+    assert response.status_code == 404
+
+
+async def test_open_library_still_wins_when_reachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """FR-07 is unchanged: the fallback only fires when identity is missing."""
+    monkeypatch.setenv("ALLOW_IDENTITY_FALLBACK", "1")
+    monkeypatch.setenv("USE_AGENT", "0")
+    _stub_upstreams(monkeypatch, OPEN_LIBRARY_PAYLOAD, GOOGLE_BOOKS_WITH_IDENTITY)
+
+    response = await _get(f"/api/books/{GOLDEN_ISBN}")
+
+    book = BookInfo.model_validate(response.json())
+    assert book.title == "clean code  "  # Open Library's, not Google Books'
+    assert book.sources == ["open_library", "google_books"]
+
+
 def test_system_prompt_forbids_supplying_facts() -> None:
     """Rule 1 must be stated in the prompt, not only enforced in Python."""
     prompt = agent_module.SYSTEM_PROMPT.lower()

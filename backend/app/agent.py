@@ -140,6 +140,7 @@ def assemble(
     identity: Identity,
     commerce: Commerce | None,
     *,
+    identity_source: Source,
     title: str,
     authors: list[str],
     cover_url: str | None,
@@ -150,10 +151,12 @@ def assemble(
     """Build a BookInfo, with Python owning every fact it already knows.
 
     The deterministic path and the agent path both end here, so provenance is
-    computed identically either way.
+    computed identically either way. `identity_source` is normally
+    "open_library" (FR-07); it is "google_books" only on the degradation path
+    described in docs/adr/0004-vertical-slice-spike.md.
     """
-    sources: list[Source] = ["open_library"]
-    if commerce is not None:
+    sources: list[Source] = [identity_source]
+    if commerce is not None and "google_books" not in sources:
         sources.append("google_books")
     if used_llm:
         sources.append("llm")
@@ -173,13 +176,17 @@ def assemble(
 
 
 def assemble_without_agent(
-    isbn: str, identity: Identity, commerce: Commerce | None
+    isbn: str,
+    identity: Identity,
+    commerce: Commerce | None,
+    identity_source: Source = "open_library",
 ) -> BookInfo:
     """The deterministic path: tool output straight into the contract."""
     return assemble(
         isbn,
         identity,
         commerce,
+        identity_source=identity_source,
         title=identity.title,
         authors=identity.authors,
         cover_url=identity.cover_url,
@@ -191,7 +198,10 @@ def assemble_without_agent(
 
 
 async def normalise(
-    isbn: str, identity: Identity, commerce: Commerce | None
+    isbn: str,
+    identity: Identity,
+    commerce: Commerce | None,
+    identity_source: Source = "open_library",
 ) -> BookInfo:
     """Run the agent over the tool output and return a validated BookInfo.
 
@@ -214,6 +224,7 @@ async def normalise(
         isbn,
         identity,
         commerce,
+        identity_source=identity_source,
         title=drafted.title,
         authors=drafted.authors,
         cover_url=str(drafted.cover_url) if drafted.cover_url else None,
